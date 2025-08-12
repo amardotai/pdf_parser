@@ -1,0 +1,45 @@
+## 36 PART I The Java Language
+
+The primitive types represent single values—not complex objects. Although Java is otherwise completely object-oriented, the primitive types are not. They are analogous to the simple types found in most other non–object-oriented languages. The reason for this is efficiency. Making the primitive types into objects would have degraded performance too much.
+
+The primitive types are defined to have an explicit range and mathematical behavior. Languages such as C and C++ allow the size of an integer to vary based upon the dictates of the execution environment. However, Java is different. Because of Java’s portability requirement, all data types have a strictly defined range.
+
+### Integers
+
+Java defines four integer types: `byte`, `short`, `int`, and `long`. All of these are signed, positive and negative values. Java does not support unsigned, positive-only integers.
+
+Many other computer languages support both signed and unsigned integers. However, Java’s designers felt that unsigned integers were unnecessary. Specifically, they felt that the concept of unsigned was used mostly to specify the behavior of the high-order bit, which defines the sign of an integer value. As you will see in Chapter 4, Java manages the meaning of the high- order bit differently, by adding a special “unsigned right shift” operator. Thus, the need for an unsigned integer type was eliminated.
+
+The width of an integer type should not be thought of as the amount of storage it consumes, but rather as the behavior it defines for variables and expressions of that type. The Java run-time environment is free to use whatever size it wants, as long as the types behave as you declared them.
+
+The width and ranges of these integer types vary widely, as shown in this table:
+
+| Name | Width (bits) | Range                                                         |
+|------|--------------|------------------------------------------------------------|
+| long | 64           | –9,223,372,036,854,775,808 to 9,223,372,036,854,775,807    |
+| int   | 32           | –2,147,483,648 to 2,147,483,647                             |
+| short | 16           | –32,768 to 32,767                                            |
+| byte  |  8           | –128 to 127                                                  |
+
+### byte
+
+The smallest integer type is `byte`. This is a signed 8-bit type that has a range from –128 to 127. Variables of type `byte` are especially useful when you’re working with a stream of data from a network or file. They are also useful when you’re working with raw binary data that may not be directly compatible with Java’s other built-in types.
+## The Java Language
+
+### Part I
+
+The primitive types represent single values—not complex objects. Although Java is otherwise completely object-oriented, the primitive types are not. They are analogous to the simple types found in most other non–object-oriented languages. The reason for this is efficiency. Making the primitive types into objects would have degraded performance too much.
+
+The primitive types are defined to have an explicit range and mathematical behavior. Languages such as C and C++ allow the size of an integer to vary based upon the dictates of the execution environment. However, Java is different. Because of Java’s portability requirement, all data types have a strictly defined range.
+
+#### Integers
+
+Java defines four integer types: `byte`, `short`, `int`, and `long`. All of these are signed, positive and negative values. Java does not support unsigned, positive-only integers.
+
+Many other computer languages support both signed and unsigned integers. However, Java’s designers felt that unsigned integers were unnecessary. Specifically, they felt that the concept of unsigned was used mostly to specify the behavior of the high-order bit, which defines the sign of an integer value. As you will see in Chapter 4, Java manages the meaning of the high- order bit differently, by adding a special “unsigned right shift” operator. Thus, the need for an unsigned integer type was eliminated.
+
+The width of an integer type should not be thought of as the amount of storage it consumes, but rather as the behavior it defines for variables and expressions of that type. The Java run-time environment is free to use whatever size it wants, as long as the types behave as you declared them.
+
+##### byte
+
+The smallest integer type is `byte`. This is a signed 8-bit type that has a range from –128 to 127. Variables of type `byte` are especially useful when you’re working with a stream of data from a network or file. They are also useful when you’re working with raw binary data that may not be directly compatible with Java’s other built-in types.
