@@ -1,4 +1,7 @@
 import fitz  # PyMuPDF
+import markdown2
+from markdown.extensions.extra import extensions
+
 
 def pdf_to_markdown(pdf_path, output_md="output.md"):
     doc = fitz.open(pdf_path)
@@ -67,17 +70,23 @@ def pdf_to_markdown(pdf_path, output_md="output.md"):
                 prefix = size_to_md.get(size, "")
 
                 # Apply bold/italic
-                if flags & 2 and flags & 1:   # bold + italic
+                if flags == 18 or flags == 22:   # bold + italic
                     text = f"**_{text}_**"
-                elif flags & 2:  # bold
+                elif flags==16 or flags == 20:  # bold
                     text = f"**{text}**"
-                elif flags & 1:  # italic
+                elif flags==2 or flags == 6:  # italic
                     text = f"_{text}_"
 
                 md_parts.append(f"{prefix}{text}\n")
         md_parts.append("\n---\n")  # page separator
 
     # --- Save Markdown ---
+
     return "".join(md_parts)
 
-markdown_text = pdf_to_markdown("pdfs/javabook-71-89.pdf", "output.md")
+
+# Example
+markdown_result = pdf_to_markdown("javabook-71-89.pdf", "output.md")
+html_result = markdown2.markdown(markdown_result,extras=["tables"])
+
+
