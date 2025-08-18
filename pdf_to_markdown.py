@@ -1,6 +1,5 @@
 import fitz  # PyMuPDF
 import markdown2
-from markdown.extensions.extra import extensions
 
 
 def pdf_to_markdown(pdf_path, output_md="output.md"):
@@ -86,7 +85,7 @@ def pdf_to_markdown(pdf_path, output_md="output.md"):
 
 
 # Example
-markdown_result = pdf_to_markdown("javabook-71-89.pdf", "output.md")
+markdown_result = pdf_to_markdown("pdfs/javabook-71-89.pdf", "output.md")
 html_result = markdown2.markdown(markdown_result,extras=["tables"])
 
 
