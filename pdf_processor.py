@@ -2,8 +2,8 @@ import fitz  # PyMuPDF
 import markdown2
 
 
-def pdf_to_markdown(pdf_path, output_md="output.md"):
-    doc = fitz.open(pdf_path)
+def pdf_to_markdown(file):
+    doc = fitz.open(stream=file, filetype="pdf")
 
     font_sizes = set()
     all_blocks_per_page = []
@@ -84,8 +84,10 @@ def pdf_to_markdown(pdf_path, output_md="output.md"):
     return "".join(md_parts)
 
 
-# Example
-markdown_result = pdf_to_markdown("pdfs/javabook-71-89.pdf", "output.md")
-html_result = markdown2.markdown(markdown_result,extras=["tables"])
+def pdf_processor(file):
+    markdown_result = pdf_to_markdown(file)
+    html_result = markdown2.markdown(markdown_result,extras=["tables"])
+    print("PDF Processed successfully")
+    return html_result
 
 
