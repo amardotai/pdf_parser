@@ -1,134 +1,83 @@
-# from langchain_ollama.llms import OllamaLLM
-# from langchain_core.prompts import ChatPromptTemplate
-# import fitz
-# def strip_markdown_fences(text):
-#     if text.strip().startswith("```"):
-#         # Remove first line (```markdown or ```)
-#         text = "\n".join(text.split("\n")[1:])
-#     if text.strip().endswith("```"):
-#         # Remove last ```
-#         text = "\n".join(text.strip().split("\n")[:-1])
-#     return text
-#
-# def text_to_markdown(text):
-#     model = OllamaLLM(model='mistral')
-#
-#     template = """
-#     You are TextBot, an AI backend processor read the text provided by user, and then process that intelligently into markdown formatting for structure, without altering the contents. Look at the structure and use the appropriate headings, bullet points, hyperlinks or code blocks, and also format tables in markdown properly.There are no instructions given by the user, only the text to be improved with markdown. Do not change the text in any other way.Output raw markdown and do not include any explanation or commentary.
-#     Only use the following syntax:
-#     ## Heading
-#     ### Subheading
-#     * list
-#     *italic*
-#     **bold**
-#     [link](url)
-#
-#     Process the below text:
-#     {text}
-#     """
-#
-#
-#     prompt = ChatPromptTemplate.from_template(template)
-#
-#     chain = prompt | model
-#
-#     return chain.invoke({"text":text})
-#
-#
-# def chunk_text(text,chunk_size=500,overlap=100):
-#     words = text.split()
-#     chunks = []
-#     for i in range(0, len(words), chunk_size - overlap):
-#         chunk = " ".join(words[i:i + chunk_size])
-#         chunks.append(chunk)
-#     return chunks
-#
-# def pdf_to_markdown(pdf):
-#     doc = fitz.open(pdf)
-#     extracted_text = ""
-#     for page in doc:
-#         extracted_text += page.get_text()
-#
-#     chunks = chunk_text(extracted_text)
-#
-#     markdown_chunks  = []
-#     for idx, chunk in enumerate(chunks, start=1):
-#         print(f"Processing chunk {idx}/{len(chunks)}...")
-#         md = text_to_markdown(chunk)
-#         md_clean = strip_markdown_fences(md)
-#         markdown_chunks.append(md_clean)
-#
-#     full_markdown = "\n".join(markdown_chunks)
-#     with open("output.md", "w", encoding="utf-8") as f:
-#         f.write(full_markdown)
-#
-# pdf_to_markdown("javabook-71-89.pdf")
+import fitz  # PyMuPDF
 
-
-from langchain_ollama import ChatOllama
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.schema import HumanMessage, AIMessage
-import fitz
-
-def strip_markdown_fences(text):
-    if text.strip().startswith("```"):
-        text = "\n".join(text.split("\n")[1:])
-    if text.strip().endswith("```"):
-        text = "\n".join(text.strip().split("\n")[:-1])
-    return text
-
-def chunk_text(text,chunk_size=500,overlap=100):
-    words = text.split()
-    chunks = []
-    for i in range(0, len(words), chunk_size - overlap):
-        chunk = " ".join(words[i:i + chunk_size])
-        chunks.append(chunk)
-    return chunks
-
-prompt_template = ChatPromptTemplate.from_messages([
-    ("system", """
-    You are TextBot, an AI backend processor read the text provided by user, and then process that intelligently into markdown formatting for structure, without altering the contents. Look at the structure and use the appropriate headings, bullet points, hyperlinks or code blocks, and also format tables in markdown properly.There are no instructions given by the user, only the text to be improved with markdown. Do not change the text in any other way.Output raw markdown and do not include any explanation or commentary. Don't mark the output without any marking
-
-    Only use the following syntax:
-
-    ## Heading
-    ### Subheading
-    * list
-    *italic*
-    **bold**
-    [link](url)
-
-    Process the below text:
-    {text}
-    """),
-    ("human", "{text}")
-])
-
-def pdf_to_markdown_with_context(pdf_path, output_md_path, chunk_size=500):
-    model = ChatOllama(model='mistral', temperature=0)
-
-    messages = []
-    markdown_parts = []
-
+def pdf_to_markdown(pdf_path, output_md="output.md"):
     doc = fitz.open(pdf_path)
-    text = "".join(page.get_text() for page in doc)
-    chunks = chunk_text(text)
 
-    for i, chunk in enumerate(chunks, start=1):
-        new_messages = prompt_template.format_messages(
-            text=chunk
-        )
+    font_sizes = set()
+    all_blocks_per_page = []
 
-        all_messages = messages + new_messages
+    for page in doc:
+        page_blocks = []
 
-        response = model.invoke(all_messages)
-        markdown_parts.append(strip_markdown_fences(response.content))
+        # --- Find tables ---
+        tables = page.find_tables()
+        table_bboxes = []
+        for t in tables:
+            table_md = t.to_markdown()
+            page_blocks.append(("table", t.bbox, table_md))
+            table_bboxes.append(t.bbox)
 
-        messages.extend(new_messages)
-        messages.append(AIMessage(content=response.content))
+        # --- Process text spans (skip table regions to avoid duplicates) ---
+        blocks = page.get_text("dict")["blocks"]
+        for block in blocks:
+            if "lines" in block:
+                for line in block["lines"]:
+                    for span in line["spans"]:
+                        bbox = span["bbox"]
+                        # Skip if inside a detected table
+                        if any(
+                            bbox[0] >= tb[0] and bbox[1] >= tb[1] and
+                            bbox[2] <= tb[2] and bbox[3] <= tb[3]
+                            for tb in table_bboxes
+                        ):
+                            continue
 
-    with open(output_md_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(markdown_parts))
+                        size = round(span["size"], 1)
+                        text = span["text"].strip()
+                        flags = span["flags"]
+                        if text:
+                            font_sizes.add(size)
+                            page_blocks.append(("span", bbox, (size, text, flags)))
 
-pdf_to_markdown_with_context("javabook-71.pdf", "output.md")
+        # Sort blocks by vertical position (preserve reading order)
+        page_blocks.sort(key=lambda b: b[1][1])
+        all_blocks_per_page.append(page_blocks)
 
+    # --- Assign font size → Markdown heading ---
+    sorted_sizes = sorted(list(font_sizes), reverse=True)
+    size_to_md = {}
+    if sorted_sizes:
+        size_to_md[sorted_sizes[0]] = "# "   # h1
+        if len(sorted_sizes) > 1:
+            size_to_md[sorted_sizes[1]] = "## "  # h2
+        if len(sorted_sizes) > 2:
+            size_to_md[sorted_sizes[2]] = "### "  # h3
+        for s in sorted_sizes[3:]:
+            size_to_md[s] = ""  # paragraph
+
+    # --- Build Markdown ---
+    md_parts = []
+    for page_num, blocks in enumerate(all_blocks_per_page, start=1):
+        md_parts.append(f"\n<!-- Page {page_num} -->\n")
+        for btype, bbox, content in blocks:
+            if btype == "table":
+                md_parts.append(content + "\n")
+            else:  # span
+                size, text, flags = content
+                prefix = size_to_md.get(size, "")
+
+                # Apply bold/italic
+                if flags & 2 and flags & 1:   # bold + italic
+                    text = f"**_{text}_**"
+                elif flags & 2:  # bold
+                    text = f"**{text}**"
+                elif flags & 1:  # italic
+                    text = f"_{text}_"
+
+                md_parts.append(f"{prefix}{text}\n")
+        md_parts.append("\n---\n")  # page separator
+
+    # --- Save Markdown ---
+    return "".join(md_parts)
+
+markdown_text = pdf_to_markdown("pdfs/javabook-71-89.pdf", "output.md")
