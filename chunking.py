@@ -18,5 +18,5 @@ def chunk_text(html):
 
     docs = chunk_splitter.split_documents(header_splits)
     print("Chunking performed successfully")
-    print(docs[0:3])
+    print(len(docs))
     return docs

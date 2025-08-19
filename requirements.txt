@@ -4,3 +4,6 @@ ollama==0.5.3
 langchain==0.3.27
 langchain_ollama==0.3.6
 langchain-core~=0.3.74
+psycopg~=3.2.9
+streamlit~=1.48.1
+markdown2~=2.5.4

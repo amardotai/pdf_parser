@@ -1,0 +1,114 @@
+import psycopg
+from uuid import uuid4
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableParallel, RunnableLambda
+from langchain_postgres import PGVector
+
+PG_CONN = "postgresql+psycopg://postgres:1234@localhost:5432/postgres"
+COLLECTION = "pdf_chunks"
+
+embeddings = OllamaEmbeddings(model="mxbai-embed-large")
+
+vector_store = PGVector(
+    connection=PG_CONN,
+    collection_name=COLLECTION,
+    embeddings=embeddings,
+    use_jsonb=True,
+    create_extension=False
+)
+
+
+def reset_collection(collection_name: str):
+    conn = psycopg.connect(
+        dbname="postgres",
+        user="postgres",
+        password="1234",
+        host="localhost",
+        port="5432"
+    )
+    with conn, conn.cursor() as cur:
+        cur.execute("SELECT uuid FROM langchain_pg_collection WHERE name = %s", (collection_name,))
+        row = cur.fetchone()
+        if row:
+            collection_id = row[0]
+            print(f"🗑 Removing old collection '{collection_name}' ({collection_id})...")
+            cur.execute("DELETE FROM langchain_pg_embedding WHERE collection_id = %s", (collection_id,))
+            cur.execute("DELETE FROM langchain_pg_collection WHERE uuid = %s", (collection_id,))
+        else:
+            print(f"No existing collection named '{collection_name}' found.")
+
+
+
+
+def ensure_collection_exists(collection_name):
+    conn = psycopg.connect(
+        dbname="postgres",
+        user="postgres",
+        password="1234",
+        host="localhost",
+        port="5432"
+    )
+    with conn, conn.cursor() as cur:
+        # Check if collection exists
+        cur.execute("SELECT uuid FROM langchain_pg_collection WHERE name = %s", (collection_name,))
+        row = cur.fetchone()
+        if not row:
+            # Create collection manually
+            collection_id = str(uuid4())
+            cur.execute(
+                "INSERT INTO langchain_pg_collection (uuid, name, cmetadata) VALUES (%s, %s, %s)",
+                (collection_id, collection_name, "{}")
+            )
+            print(f"✅ Created collection '{collection_name}' with id {collection_id}")
+        else:
+            print(f"Collection '{collection_name}' already exists.")
+
+
+def doc_ingestion(docs):
+    reset_collection(COLLECTION)
+    ensure_collection_exists(COLLECTION)
+    ids = [f"chunk-{i}" for i in range(len(docs))]
+    vector_store.add_documents(documents=docs, ids=ids)
+
+
+llm = ChatOllama(model="mistral", temperature=0)
+retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 10})
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant. Use the context below to answer."),
+    ("human", "Question: {question}\n\nContext:\n{context}")
+])
+
+def format_docs(docs):
+    return "\n\n".join(d.page_content for d in docs)
+
+safe_question = RunnableLambda(lambda x: str(x["question"]) if isinstance(x, dict) else str(x))
+
+rag_chain = (
+    RunnableParallel({
+        "docs": retriever,
+        "question": safe_question
+    })
+    | RunnableParallel({
+        "context": RunnableLambda(lambda x: format_docs(x["docs"])),
+        "question": safe_question
+    })
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+def ask(q: str):
+    print("rag called")
+    ret = retriever.get_relevant_documents(q)
+    for r in ret:
+        print("\n\n --- \n\n")
+        print(r.page_content)
+    return rag_chain.invoke(q)
+
+
+
+
+

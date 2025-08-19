@@ -11,7 +11,6 @@ def pdf_to_markdown(file):
     for page in doc:
         page_blocks = []
 
-        # --- Find tables ---
         tables = page.find_tables()
         table_bboxes = []
         for t in tables:
@@ -19,7 +18,6 @@ def pdf_to_markdown(file):
             page_blocks.append(("table", t.bbox, table_md))
             table_bboxes.append(t.bbox)
 
-        # --- Process text spans (skip table regions to avoid duplicates) ---
         blocks = page.get_text("dict")["blocks"]
         for block in blocks:
             if "lines" in block:
@@ -41,11 +39,11 @@ def pdf_to_markdown(file):
                             font_sizes.add(size)
                             page_blocks.append(("span", bbox, (size, text, flags)))
 
-        # Sort blocks by vertical position (preserve reading order)
+
         page_blocks.sort(key=lambda b: b[1][1])
         all_blocks_per_page.append(page_blocks)
 
-    # --- Assign font size → Markdown heading ---
+
     sorted_sizes = sorted(list(font_sizes), reverse=True)
     size_to_md = {}
     if sorted_sizes:
@@ -57,7 +55,6 @@ def pdf_to_markdown(file):
         for s in sorted_sizes[3:]:
             size_to_md[s] = ""  # paragraph
 
-    # --- Build Markdown ---
     md_parts = []
     for page_num, blocks in enumerate(all_blocks_per_page, start=1):
         md_parts.append(f"\n<!-- Page {page_num} -->\n")
@@ -79,13 +76,15 @@ def pdf_to_markdown(file):
                 md_parts.append(f"{prefix}{text}\n")
         md_parts.append("\n---\n")  # page separator
 
-    # --- Save Markdown ---
+
 
     return "".join(md_parts)
 
 
 def pdf_processor(file):
     markdown_result = pdf_to_markdown(file)
+    print("\n\n\n\n\n\n")
+    print("markdown result"+markdown_result)
     html_result = markdown2.markdown(markdown_result,extras=["tables"])
     print("PDF Processed successfully")
     return html_result
