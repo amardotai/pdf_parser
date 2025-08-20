@@ -74,10 +74,10 @@ def doc_ingestion(docs):
 
 
 llm = ChatOllama(model="mistral", temperature=0)
-retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 10})
+retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 2,"score_threshold":0.2})
 
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant. Use the context below to answer."),
+    ("system", "You are a helpful assistant. Use the context below to answer. Answer only using the provided context. If the answer is not in the context, reply please question accordingly"),
     ("human", "Question: {question}\n\nContext:\n{context}")
 ])
 
@@ -103,9 +103,13 @@ rag_chain = (
 def ask(q: str):
     print("rag called")
     ret = retriever.get_relevant_documents(q)
+    with open("returned_chunks.txt","w",encoding='utf-8') as f:
+        f.write("")
+
     for r in ret:
-        print("\n\n --- \n\n")
-        print(r.page_content)
+        with open("returned_chunks.txt","a",encoding='utf-8') as f:
+            f.write("\n\n --- \n\n")
+            f.write(r.page_content)
     return rag_chain.invoke(q)
 
 
