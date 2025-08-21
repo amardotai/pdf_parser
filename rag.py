@@ -77,7 +77,7 @@ llm = ChatOllama(model="mistral", temperature=0)
 retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 2,"score_threshold":0.2})
 
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant. Use the context below to answer. Answer only using the provided context. If the answer is not in the context, reply please question accordingly"),
+    ("system", "You are a helpful assistant. Use the context below to answer. Answer only using the provided context. If the answer is not in the context, reply please question accordingly. Do not add extra text or instructions"),
     ("human", "Question: {question}\n\nContext:\n{context}")
 ])
 

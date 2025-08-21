@@ -16,10 +16,19 @@ if file is not None:
         st.session_state["doc_ingested"] = True
 
 if st.session_state.get("doc_ingested"):
-    question = st.text_input("Ask anything:")
-    if st.button("Send"):
-        if not question.strip():
-            st.warning("Please enter a question.")
-        else:
-            res = rag.ask(question)
-            st.write(res)
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    question = ""
+    if question := st.chat_input("Ask anything:"):
+        with st.chat_message("user"):
+            st.markdown(question)
+        st.session_state.messages.append({"role": "user", "content": question})
+
+        res = rag.ask(question)
+        with st.chat_message("assistant"):
+            st.markdown(res)
+        st.session_state.messages.append({"role": "assistant", "content": res})

@@ -1,0 +1,27 @@
+1 Page(8 Chunks)
+Processing time : Instantly
+Answering Time: 22 Sec
+Questions Tested: 3
+Remarks:- Perfect
+
+19 Pages(104 Chunks)
+Processing Time: 15 Sec
+Answering Time: 40 sec
+Questions Answered: 6
+Remarks: In questions 1, chunks retrieved are perfect and answer is good but llm made wrong meaning of the context in a sentence.
+	     In Question 5, I intended to get answer from Booleans topic but the paragraph from Boolean Literals topped the similarity search
+
+50 Pages(296 Chunks)
+Processing Time: 25 Sec
+Answering Time: 27 sec
+Questions Answered: 8
+Remarks: Again the unintended chunk was picked in Q3 but answer was perfect,
+	 Chunk broken in the middle of bullet list leading to incomplete answer in q4
+	 Given correct answer within context provided but added extra commentary in Q5
+
+565 Pages(2201 Chunks)
+Processing Time: 2 Min 50 Sec
+Answering Time: 37 sec
+Questions Answered: 8
+Remarks: Q2 Perfect chunks were retrieved but llm focused on example more than the provided text
+	 Q6 Same problem
