@@ -17,7 +17,7 @@ def pdf_to_markdown(file):
         table_bboxes = []
         for t in tables:
             table_md = t.to_markdown()
-            page_blocks.append(("table", t.bbox, table_md))
+            page_blocks.append(("table", t.bbox, "\n "+table_md))
             table_bboxes.append(t.bbox)
 
         blocks = page.get_text("dict")["blocks"]
@@ -60,12 +60,12 @@ def pdf_to_markdown(file):
         for s in sorted_sizes[para_font_index:]:
             size_to_md[s] = ""                                      # paragraph
         if para_font_index > 3:
-            size_to_md[sorted_sizes[para_font_index-4]] = "# "      # h3
+            size_to_md[sorted_sizes[para_font_index-4]] = "# "      # h1
             size_to_md[sorted_sizes[para_font_index - 3]] = "## "   # h2
             size_to_md[sorted_sizes[para_font_index - 2]] = "### "  # h3
             size_to_md[sorted_sizes[para_font_index - 1]] = "#### " # h4
         if para_font_index > 2:
-            size_to_md[sorted_sizes[para_font_index-3]] = "# "      # h3
+            size_to_md[sorted_sizes[para_font_index-3]] = "# "      # h1
             size_to_md[sorted_sizes[para_font_index - 2]] = "## "   # h2
             size_to_md[sorted_sizes[para_font_index - 1]] = "### "  # h3
         elif para_font_index > 1:
@@ -74,11 +74,10 @@ def pdf_to_markdown(file):
         elif para_font_index > 0:
             size_to_md[sorted_sizes[para_font_index - 1]] = "# "    # h1
         for s in sorted_sizes[:para_font_index-4]:
-            size_to_md[s] = "-rm-"  # outliers
+            size_to_md[s] = "#"  # outliers
 
     md_parts = []
     for page_num, blocks in enumerate(all_blocks_per_page, start=1):
-        md_parts.append(f"\n<!-- Page {page_num} -->\n")
         for btype, bbox, content in blocks:
             if btype == "table":
                 md_parts.append(content + "\n")

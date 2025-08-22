@@ -22,7 +22,7 @@ if st.session_state.get("doc_ingested"):
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-    question = ""
+
     if question := st.chat_input("Ask anything:"):
         with st.chat_message("user"):
             st.markdown(question)
