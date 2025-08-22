@@ -1,9 +1,11 @@
 import psycopg
+import json
 from uuid import uuid4
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableParallel, RunnableLambda
+from langchain.docstore.document import Document
 from langchain_postgres import PGVector
 
 PG_CONN = "postgresql+psycopg://postgres:1234@localhost:5432/postgres"
@@ -20,6 +22,42 @@ vector_store = PGVector(
 )
 
 
+llm = ChatOllama(model="mistral", temperature=0)
+retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 2,"score_threshold":0.2})
+def create_context(q: str):
+    returned_docs = retriever.invoke(q)
+    chunks = []
+
+    for doc in returned_docs:
+        if doc.metadata["type"] == "header":
+            conn = psycopg.connect(
+                "dbname=postgres user=postgres password=1234 host=localhost port=5432"
+            )
+            with conn.cursor() as cur:
+                # Example: arbitrary SQL query on langchain_pg_embedding table
+                cur.execute("""
+                    SELECT document, cmetadata
+                    FROM langchain_pg_embedding
+                    WHERE cmetadata->>'flattened-header' = %s
+                """,(doc.page_content,))
+                rows = cur.fetchall()
+            page_contents = [c.page_content for c in chunks]
+            for document,cmetadata in rows:
+                if document not in page_contents:
+                    metadata = cmetadata if isinstance(cmetadata, dict) else json.loads(cmetadata)
+                    chunks.append(Document(page_content=document, metadata=metadata))
+        else:
+            page_contents = [c.page_content for c in chunks]
+            if doc.page_content not in page_contents:
+                chunks.append(doc)
+    return chunks
+
+
+
+
+
+
+# Clears Collection before adding new pdf
 def reset_collection(collection_name: str):
     conn = psycopg.connect(
         dbname="postgres",
@@ -41,7 +79,7 @@ def reset_collection(collection_name: str):
 
 
 
-
+# Adds empty entry to create collection before
 def ensure_collection_exists(collection_name):
     conn = psycopg.connect(
         dbname="postgres",
@@ -73,9 +111,6 @@ def doc_ingestion(docs):
     vector_store.add_documents(documents=docs, ids=ids)
 
 
-llm = ChatOllama(model="mistral", temperature=0)
-retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 2,"score_threshold":0.2})
-
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant. Use the context below to answer. Answer only using the provided context. If the answer is not in the context, reply please question accordingly. Do not add extra text or instructions"),
     ("human", "Question: {question}\n\nContext:\n{context}")
@@ -88,7 +123,7 @@ safe_question = RunnableLambda(lambda x: str(x["question"]) if isinstance(x, dic
 
 rag_chain = (
     RunnableParallel({
-        "docs": retriever,
+        "docs": create_context,
         "question": safe_question
     })
     | RunnableParallel({
@@ -102,7 +137,7 @@ rag_chain = (
 
 def ask(q: str):
     print("rag called")
-    ret = retriever.get_relevant_documents(q)
+    ret = create_context(q)
     with open("returned_chunks.txt","w",encoding='utf-8') as f:
         f.write("")
 
