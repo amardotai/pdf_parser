@@ -74,7 +74,7 @@ def pdf_to_markdown(file):
         elif para_font_index > 0:
             size_to_md[sorted_sizes[para_font_index - 1]] = "# "    # h1
         for s in sorted_sizes[:para_font_index-4]:
-            size_to_md[s] = "#"  # outliers
+            size_to_md[s] = "# "  # outliers
 
     md_parts = []
     for page_num, blocks in enumerate(all_blocks_per_page, start=1):

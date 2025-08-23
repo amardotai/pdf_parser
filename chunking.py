@@ -1,8 +1,6 @@
 from langchain.text_splitter import HTMLHeaderTextSplitter, RecursiveCharacterTextSplitter
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain.docstore.document import Document
-from sqlalchemy.testing.suite.test_reflection import metadata
-
 
 def chunk_text(html):
     headers_to_split_on = [

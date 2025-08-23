@@ -14,6 +14,8 @@ if file is not None:
         rag.doc_ingestion(chunked_doc)
         st.success("Documnet Ingested Successfully")
         st.session_state["doc_ingested"] = True
+        if "messages" in st.session_state:
+            st.session_state.messages = []
 
 if st.session_state.get("doc_ingested"):
     if "messages" not in st.session_state:

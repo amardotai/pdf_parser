@@ -23,13 +23,14 @@ vector_store = PGVector(
 
 
 llm = ChatOllama(model="mistral", temperature=0)
-retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 2,"score_threshold":0.2})
+retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 3,"score_threshold":0.2})
 def create_context(q: str):
     returned_docs = retriever.invoke(q)
     chunks = []
 
     for doc in returned_docs:
         if doc.metadata["type"] == "header":
+            print("Heder retrieved:",doc.page_content)
             conn = psycopg.connect(
                 "dbname=postgres user=postgres password=1234 host=localhost port=5432"
             )
@@ -51,8 +52,6 @@ def create_context(q: str):
             if doc.page_content not in page_contents:
                 chunks.append(doc)
     return chunks
-
-
 
 
 
