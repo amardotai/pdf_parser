@@ -30,7 +30,6 @@ def create_context(q: str):
 
     for doc in returned_docs:
         if doc.metadata["type"] == "header":
-            print("Heder retrieved:",doc.page_content)
             conn = psycopg.connect(
                 "dbname=postgres user=postgres password=1234 host=localhost port=5432"
             )
