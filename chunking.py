@@ -1,4 +1,4 @@
-from langchain.text_splitter import HTMLHeaderTextSplitter, RecursiveCharacterTextSplitter
+from langchain.text_splitter import  RecursiveCharacterTextSplitter
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain.docstore.document import Document
 
@@ -12,10 +12,13 @@ def chunk_text(html):
     md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
     para_splits = md_splitter.split_text(html)
     header_splits = []
+    headers = []
     for split in para_splits:
         flattened_header = " > ".join(split.metadata.values())
-        header_doc = Document(page_content=flattened_header,metadata={"type":"header"})
-        header_splits.append(header_doc)
+        if flattened_header not in headers:
+            headers.append(flattened_header)
+            header_doc = Document(page_content=flattened_header,metadata={"type":"header"})
+            header_splits.append(header_doc)
         split.metadata["type"] = "para"
         split.metadata["flattened-header"] = flattened_header
 
