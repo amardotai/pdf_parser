@@ -11,28 +11,87 @@ from langchain.text_splitter import  RecursiveCharacterTextSplitter
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain.docstore.document import Document
 
-def chunk_text(html):
-    headers_to_split_on = [
-        ("#", "Header 1"),
-        ("##", "Header 2"),
-        ("###", "Header 3"),
-    ]
 
-    md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
-    para_splits = md_splitter.split_text(html)
-    header_splits = []
-    headers = []
-    for split in para_splits:
-        flattened_header = " > ".join(split.metadata.values())
-        if flattened_header not in headers:
-            headers.append(flattened_header)
-            header_doc = Document(page_content=flattened_header,metadata={"type":"header"})
-            header_splits.append(header_doc)
-        split.metadata["type"] = "para"
-        split.metadata["flattened-header"] = flattened_header
+def markdown_split(markdown_list):
+    header_path = ""
+    markdown_splits = []
+    current_text = ""
+    print(markdown_list[0]["type"])
 
-    all_splits = header_splits+para_splits
+    for markdown_part in markdown_list:
+        content = markdown_part["content"]
+        part_type = markdown_part["type"]
+        bbox = markdown_part["bbox"]
+        part_id = markdown_part["id"]
+        if part_type == "header":
+            markdown_splits.append(
+                Document(
+                    page_content=current_text,
+                    metadata={"type": "para", "flattened-header": header_path}
+                )
+            )
+            current_text = ""
+            if content.strip()[:4] == "####":
+                header_path += f" > {content[2:].strip()}"
+            elif content.strip()[:3] == "###":
+                header_path += f" > {content[2:].strip()}"
+            elif content.strip()[:2] == "##":
+                header_path += f" > {content[2:].strip()}"
+            elif content.strip()[0] == "#":
+                header_path = content[1:].strip()
 
+            markdown_splits.append(
+                Document(
+                    page_content=header_path,
+                    metadata={"type": "header"}
+                )
+            )
+
+            print("Header Path",header_path)
+
+        if part_type == "table":
+            markdown_splits.append(Document(page_content=content, metadata={"type": "table", "table-id": part_id,
+                                                                            "flattened-header": header_path}))
+        if markdown_part["type"] == "para":
+            current_text += f"{content.strip()} "
+
+
+    if current_text:
+        markdown_splits.append(
+            Document(
+                page_content=current_text,
+                metadata={"type": "para", "flattened-header": header_path}
+            )
+        )
+
+    return markdown_splits
+
+
+def chunk_text(markdown_parts):
+    # markdown_parts_list = [part["content"] for part in markdown_parts]
+    # markdown = "".join(markdown_parts_list)
+    # headers_to_split_on = [
+    #     ("#", "Header 1"),
+    #     ("##", "Header 2"),
+    #     ("###", "Header 3"),
+    # ]
+    #
+    # md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
+    # para_splits = md_splitter.split_text(markdown)
+    # header_splits = []
+    # headers = []
+    # for split in para_splits:
+    #     flattened_header = " > ".join(split.metadata.values())
+    #     if flattened_header not in headers:
+    #         headers.append(flattened_header)
+    #         header_doc = Document(page_content=flattened_header,metadata={"type":"header"})
+    #         header_splits.append(header_doc)
+    #     split.metadata["type"] = "para"
+    #     split.metadata["flattened-header"] = flattened_header
+    #
+    # # all_splits = header_splits+para_splits
+    # # print(type(all_splits[0]))
+    all_splits = markdown_split(markdown_parts)
     chunk_splitter = RecursiveCharacterTextSplitter(
         chunk_size=650,
         chunk_overlap=100,
@@ -108,7 +167,7 @@ def reset_collection(collection_name: str):
         row = cur.fetchone()
         if row:
             collection_id = row[0]
-            print(f"🗑 Removing old collection '{collection_name}' ({collection_id})...")
+            print(f"Removing old collection '{collection_name}' ({collection_id})...")
             cur.execute("DELETE FROM langchain_pg_embedding WHERE collection_id = %s", (collection_id,))
             cur.execute("DELETE FROM langchain_pg_collection WHERE uuid = %s", (collection_id,))
         else:
@@ -136,7 +195,7 @@ def ensure_collection_exists(collection_name):
                 "INSERT INTO langchain_pg_collection (uuid, name, cmetadata) VALUES (%s, %s, %s)",
                 (collection_id, collection_name, "{}")
             )
-            print(f"✅ Created collection '{collection_name}' with id {collection_id}")
+            print(f"Created collection '{collection_name}' with id {collection_id}")
         else:
             print(f"Collection '{collection_name}' already exists.")
 

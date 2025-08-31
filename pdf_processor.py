@@ -1,7 +1,21 @@
 import fitz  # PyMuPDF
-import markdown2
-from pathlib import Path
+import pdfplumber
+import pandas as pd
+import uuid
 
+def table_to_markdown(file):
+    all_tables = []
+    with pdfplumber.open(file) as pdf:
+        for page_number, page in enumerate(pdf.pages, start=1):
+            table_bbox = page.find_tables()
+            tables = page.extract_tables()
+            for bbox, table in zip(table_bbox, tables):
+                df = pd.DataFrame(table[1:], columns=table[0])
+                df = df.loc[:, [c for c in df.columns if c not in [None, ""]]]
+                markdown_table = df.to_markdown(index=False)
+                all_tables.append(("table",bbox.bbox,"\n"+markdown_table+"\n",page_number))
+
+    return all_tables
 
 def pdf_to_markdown(file):
     doc = fitz.open(stream=file, filetype="pdf")
@@ -9,16 +23,19 @@ def pdf_to_markdown(file):
     font_sizes = set()
     all_blocks_per_page = []
     font_size_counts = {}
+    all_tables = table_to_markdown(file)
 
-    for page in doc:
+    for page_number,page in enumerate(doc,start=1):
         page_blocks = []
-
-        tables = page.find_tables()
         table_bboxes = []
-        for t in tables:
-            table_md = t.to_markdown()
-            page_blocks.append(("table", t.bbox, "\n "+table_md))
-            table_bboxes.append(t.bbox)
+        for table in all_tables:
+            table_block = table[:3]
+            table_page = table[3]
+            if table_page > page_number:
+                break
+            if table_page == page_number:
+                page_blocks.append(table_block)
+                table_bboxes.append(table[1])
 
         blocks = page.get_text("dict")["blocks"]
         for block in blocks:
@@ -28,9 +45,9 @@ def pdf_to_markdown(file):
                         bbox = span["bbox"]
                         # Skip if inside a detected table
                         if any(
-                            bbox[0] >= tb[0] and bbox[1] >= tb[1] and
-                            bbox[2] <= tb[2] and bbox[3] <= tb[3]
-                            for tb in table_bboxes
+                                bbox[0] >= tb[0] and bbox[1] >= tb[1] and
+                                bbox[2] <= tb[2] and bbox[3] <= tb[3]
+                                for tb in table_bboxes
                         ):
                             continue
 
@@ -41,10 +58,11 @@ def pdf_to_markdown(file):
                             font_sizes.add(size)
                             words_in_span = len(text.split())
                             if size in font_size_counts:
-                                font_size_counts[size]+=words_in_span
+                                font_size_counts[size] += words_in_span
                             else:
                                 font_size_counts[size] = words_in_span
                             page_blocks.append(("span", bbox, (size, text, flags)))
+
 
 
         page_blocks.sort(key=lambda b: b[1][1])
@@ -64,7 +82,7 @@ def pdf_to_markdown(file):
             size_to_md[sorted_sizes[para_font_index - 3]] = "## "   # h2
             size_to_md[sorted_sizes[para_font_index - 2]] = "### "  # h3
             size_to_md[sorted_sizes[para_font_index - 1]] = "#### " # h4
-        if para_font_index > 2:
+        elif para_font_index > 2:
             size_to_md[sorted_sizes[para_font_index-3]] = "# "      # h1
             size_to_md[sorted_sizes[para_font_index - 2]] = "## "   # h2
             size_to_md[sorted_sizes[para_font_index - 1]] = "### "  # h3
@@ -80,39 +98,38 @@ def pdf_to_markdown(file):
     for page_num, blocks in enumerate(all_blocks_per_page, start=1):
         for btype, bbox, content in blocks:
             if btype == "table":
-                md_parts.append(content + "\n")
-            else:  # span
-                size, text, flags = content
+                md_parts.append({"content":content + "\n","type":"table","bbox":bbox,"id":str(uuid.uuid4())})
+            else:
+                size, text, flag = content
                 prefix = size_to_md.get(size, "")
 
-                # Apply bold/italic
-                # if flags == 18 or flags == 22:   # bold + italic
-                #     text = f"**_{text}_**"
-                # elif flags==16 or flags == 20:  # bold
-                #     text = f"**{text}**"
-                # elif flags==2 or flags == 6:  # italic
-                #     text = f"_{text}_"
                 if prefix in ['# ','## ','### ']:
-                    md_parts.append(f"\n{prefix}{text}\n")
-                elif text[0] == '|':
-                    md_parts.append(f"\n{prefix}{text}")
+                    md_parts.append({"content":f"\n{prefix}{text}\n","type":"header","bbox":bbox,"id":str(uuid.uuid4())})
                 else:
-                    md_parts.append(f"{prefix}{text} ")
-        md_parts.append("\n---\n")  # page separator
+                    md_parts.append({"content":f"{prefix}{text}","type":"para","bbox":bbox,"id":str(uuid.uuid4())})
+        # md_parts.append("\n---\n")  # page separator
 
+    for index,part in enumerate(md_parts):
+        content,part_type,bbox,part_id = part
+        if part_type == "table":
+            if index in range(1,len(md_parts)-1):
+                above = md_parts[index-1]
+                below = md_parts[index+1]
+                if bbox[0]-above["bbox"][3] <= 50:
+                    above["type"] = "table-caption"
+                    above["id"] = part_id
+                if below["bbox"][0]-bbox[3] <= 50:
+                    below["type"] = "table-caption"
+                    below["id"] = part_id
 
-
-    return "".join(md_parts)
+    return md_parts
 
 
 def pdf_processor(file):
     markdown_result = pdf_to_markdown(file)
     with open("parsed.md","w",encoding='utf-8') as f:
-        f.write(markdown_result)
-
-    # html_result = markdown2.markdown(markdown_result,extras=["tables"])
-    # with open("parsed.html","w",encoding='utf-8') as f:
-    #     f.write(html_result)
+        for part in markdown_result:
+            f.write(part["content"])
 
     print("PDF Processed successfully")
     return markdown_result
