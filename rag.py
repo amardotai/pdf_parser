@@ -16,7 +16,6 @@ def markdown_split(markdown_list):
     header_path = ""
     markdown_splits = []
     current_text = ""
-    print(markdown_list[0]["type"])
 
     for markdown_part in markdown_list:
         content = markdown_part["content"]
@@ -47,13 +46,20 @@ def markdown_split(markdown_list):
                 )
             )
 
-            print("Header Path",header_path)
-
         if part_type == "table":
             markdown_splits.append(Document(page_content=content, metadata={"type": "table", "table-id": part_id,
                                                                             "flattened-header": header_path}))
         if markdown_part["type"] == "para":
             current_text += f"{content.strip()} "
+
+        if part_type == "table-caption":
+            current_text += f"{content.strip()} "
+            markdown_splits.append(
+                Document(
+                    page_content=content,
+                    metadata={"type": "table-caption", "table-id": part_id,"flattened-header": header_path}
+                )
+            )
 
 
     if current_text:

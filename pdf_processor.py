@@ -24,7 +24,8 @@ def pdf_to_markdown(file):
     all_blocks_per_page = []
     font_size_counts = {}
     all_tables = table_to_markdown(file)
-
+    line_height_average = 0
+    lines = 0
     for page_number,page in enumerate(doc,start=1):
         page_blocks = []
         table_bboxes = []
@@ -41,6 +42,8 @@ def pdf_to_markdown(file):
         for block in blocks:
             if "lines" in block:
                 for line in block["lines"]:
+                    line_height_average+=line["bbox"][3]-line["bbox"][1]
+                    lines+=1
                     for span in line["spans"]:
                         bbox = span["bbox"]
                         # Skip if inside a detected table
@@ -108,17 +111,24 @@ def pdf_to_markdown(file):
                 else:
                     md_parts.append({"content":f"{prefix}{text}","type":"para","bbox":bbox,"id":str(uuid.uuid4())})
         # md_parts.append("\n---\n")  # page separator
-
+    line_height_average = line_height_average/lines
+    tolerance = line_height_average*2
+    print(tolerance)
     for index,part in enumerate(md_parts):
-        content,part_type,bbox,part_id = part
+        content,part_type,bbox,part_id = part.values()
+
         if part_type == "table":
+            print("Yes inside table")
             if index in range(1,len(md_parts)-1):
                 above = md_parts[index-1]
                 below = md_parts[index+1]
-                if bbox[0]-above["bbox"][3] <= 50:
+                print("Above distance:",bbox[1]-above["bbox"][3])
+                print("Below distance:",below["bbox"][1]-bbox[3])
+                if bbox[1]-above["bbox"][3] <= tolerance:
+                    print("Above Yes")
                     above["type"] = "table-caption"
                     above["id"] = part_id
-                if below["bbox"][0]-bbox[3] <= 50:
+                if below["bbox"][1]-bbox[3] <= tolerance:
                     below["type"] = "table-caption"
                     below["id"] = part_id
 
