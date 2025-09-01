@@ -6,8 +6,8 @@ file = st.file_uploader("Upload your pdf",type="pdf")
 
 if file is not None:
     if st.button("Process"):
-        html = pdf_processor.pdf_processor(file)
-        chunked_doc = rag.chunk_text(html)
+        md_parts = pdf_processor.pdf_processor(file)
+        chunked_doc = rag.chunk_text(md_parts)
         rag.doc_ingestion(chunked_doc)
         st.success("Documnet Ingested Successfully")
         st.session_state["doc_ingested"] = True

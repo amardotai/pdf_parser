@@ -3,6 +3,7 @@ import pdfplumber
 import pandas as pd
 import uuid
 
+
 def table_to_markdown(file):
     all_tables = []
     with pdfplumber.open(file) as pdf:
@@ -29,14 +30,21 @@ def pdf_to_markdown(file):
     for page_number,page in enumerate(doc,start=1):
         page_blocks = []
         table_bboxes = []
-        for table in all_tables:
-            table_block = table[:3]
-            table_page = table[3]
-            if table_page > page_number:
-                break
-            if table_page == page_number:
-                page_blocks.append(table_block)
-                table_bboxes.append(table[1])
+        tables_in_page = page.find_tables()
+        if tables_in_page:
+            for table in tables_in_page:
+                df = table.to_pandas()
+                table_md = df.to_markdown()
+                table_bboxes.append(table.bbox)
+                page_blocks.append(("table",table.bbox,"\n"+table_md+"\n"))
+        # for table in all_tables:
+        #     table_block = table[:3]
+        #     table_page = table[3]
+        #     if table_page > page_number:
+        #         break
+        #     if table_page == page_number:
+        #         page_blocks.append(table_block)
+        #         table_bboxes.append(table[1])
 
         blocks = page.get_text("dict")["blocks"]
         for block in blocks:
@@ -47,13 +55,19 @@ def pdf_to_markdown(file):
                     for span in line["spans"]:
                         bbox = span["bbox"]
                         # Skip if inside a detected table
-                        if any(
-                                bbox[0] >= tb[0] and bbox[1] >= tb[1] and
-                                bbox[2] <= tb[2] and bbox[3] <= tb[3]
-                                for tb in table_bboxes
-                        ):
+                        inside_table = False
+                        for tb in table_bboxes:
+                            if bbox[3] > tb[1] and bbox[1] < tb[3]:
+                                inside_table = True
+                                break
+                        # if any(
+                        #         bbox[0] >= tb[0] and bbox[1] >= tb[1] and
+                        #         bbox[2] <= tb[2] and bbox[3] <= tb[3]
+                        #         for tb in table_bboxes
+                        # ):
+                        #     continue
+                        if inside_table:
                             continue
-
                         size = round(span["size"], 1)
                         text = span["text"].strip()
                         flags = span["flags"]
@@ -106,7 +120,7 @@ def pdf_to_markdown(file):
                 size, text, flag = content
                 prefix = size_to_md.get(size, "")
 
-                if prefix in ['# ','## ','### ']:
+                if prefix in ['# ','## ','### ','#### ']:
                     md_parts.append({"content":f"\n{prefix}{text}\n","type":"header","bbox":bbox,"id":str(uuid.uuid4())})
                 else:
                     md_parts.append({"content":f"{prefix}{text}","type":"para","bbox":bbox,"id":str(uuid.uuid4())})
@@ -118,25 +132,28 @@ def pdf_to_markdown(file):
         content,part_type,bbox,part_id = part.values()
 
         if part_type == "table":
-            print("Yes inside table")
             if index in range(1,len(md_parts)-1):
                 above = md_parts[index-1]
                 below = md_parts[index+1]
-                print("Above distance:",bbox[1]-above["bbox"][3])
-                print("Below distance:",below["bbox"][1]-bbox[3])
                 if bbox[1]-above["bbox"][3] <= tolerance:
-                    print("Above Yes")
                     above["type"] = "table-caption"
                     above["id"] = part_id
+                    print(above["bbox"][1] - md_parts[index-2]["bbox"][1])
+
+                    if (above["bbox"][1] - md_parts[index-2]["bbox"][1]) < line_height_average/2:
+                        above["content"] = (above["content"] + md_parts[index-2]["content"].replace("\n"," "))
+
                 if below["bbox"][1]-bbox[3] <= tolerance:
                     below["type"] = "table-caption"
                     below["id"] = part_id
+                    if (below["bbox"][1] - md_parts[index+2]["bbox"][1]) < line_height_average/2:
+                        below["content"] = (below["content"] + md_parts[index+2]["content"].replace("\n"," "))
 
     return md_parts
 
 
 def pdf_processor(file):
-    markdown_result = pdf_to_markdown(file)
+    markdown_result= pdf_to_markdown(file)
     with open("parsed.md","w",encoding='utf-8') as f:
         for part in markdown_result:
             f.write(part["content"])

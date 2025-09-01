@@ -16,7 +16,7 @@ def markdown_split(markdown_list):
     header_path = ""
     markdown_splits = []
     current_text = ""
-
+    last_para_bbox = ()
     for markdown_part in markdown_list:
         content = markdown_part["content"]
         part_type = markdown_part["type"]
@@ -26,38 +26,55 @@ def markdown_split(markdown_list):
             markdown_splits.append(
                 Document(
                     page_content=current_text,
-                    metadata={"type": "para", "flattened-header": header_path}
+                    metadata={"type": "para", "flattened-header": header_path,"bbox":bbox}
                 )
             )
             current_text = ""
+            current_header_hierarchy = header_path.split(' > ')
             if content.strip()[:4] == "####":
-                header_path += f" > {content[2:].strip()}"
+                if header_path:
+                    if len(current_header_hierarchy) > 3:
+                        header_path = " > ".join(current_header_hierarchy[:3]) + f" > {content.strip()[5:]}"
+                    else:
+                        header_path+=f" > {content.strip()[5:]}"
+                else:
+                    header_path = content.strip()[2:]
             elif content.strip()[:3] == "###":
-                header_path += f" > {content[2:].strip()}"
+                if header_path:
+                    if len(current_header_hierarchy)>2:
+                        header_path = " > ".join(current_header_hierarchy[:2]) + f" > {content.strip()[4:]}"
+                    else:
+                        header_path += f" > {content.strip()[4:]}"
+                else:
+                    header_path = content.strip()[4:]
             elif content.strip()[:2] == "##":
-                header_path += f" > {content[2:].strip()}"
+                if header_path:
+                    header_path = current_header_hierarchy[0]+f" > {content.strip()[3:]}"
+                else:
+                    header_path = content.strip()[3:]
             elif content.strip()[0] == "#":
-                header_path = content[1:].strip()
+                header_path = content.strip()[2:]
 
             markdown_splits.append(
                 Document(
                     page_content=header_path,
-                    metadata={"type": "header"}
+                    metadata={"type": "header","bbox":bbox}
                 )
             )
 
         if part_type == "table":
             markdown_splits.append(Document(page_content=content, metadata={"type": "table", "table-id": part_id,
-                                                                            "flattened-header": header_path}))
+                                                                            "flattened-header": header_path,"bbox":bbox}))
         if markdown_part["type"] == "para":
             current_text += f"{content.strip()} "
+            last_para_bbox = bbox
 
         if part_type == "table-caption":
             current_text += f"{content.strip()} "
             markdown_splits.append(
                 Document(
                     page_content=content,
-                    metadata={"type": "table-caption", "table-id": part_id,"flattened-header": header_path}
+                    metadata={"type": "table-caption", "table-id": part_id,"flattened-header": header_path,"bbox":bbox}
                 )
             )
 
@@ -66,7 +83,7 @@ def markdown_split(markdown_list):
         markdown_splits.append(
             Document(
                 page_content=current_text,
-                metadata={"type": "para", "flattened-header": header_path}
+                metadata={"type": "para", "flattened-header": header_path,"bbox":last_para_bbox}
             )
         )
 
@@ -74,30 +91,8 @@ def markdown_split(markdown_list):
 
 
 def chunk_text(markdown_parts):
-    # markdown_parts_list = [part["content"] for part in markdown_parts]
-    # markdown = "".join(markdown_parts_list)
-    # headers_to_split_on = [
-    #     ("#", "Header 1"),
-    #     ("##", "Header 2"),
-    #     ("###", "Header 3"),
-    # ]
-    #
-    # md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
-    # para_splits = md_splitter.split_text(markdown)
-    # header_splits = []
-    # headers = []
-    # for split in para_splits:
-    #     flattened_header = " > ".join(split.metadata.values())
-    #     if flattened_header not in headers:
-    #         headers.append(flattened_header)
-    #         header_doc = Document(page_content=flattened_header,metadata={"type":"header"})
-    #         header_splits.append(header_doc)
-    #     split.metadata["type"] = "para"
-    #     split.metadata["flattened-header"] = flattened_header
-    #
-    # # all_splits = header_splits+para_splits
-    # # print(type(all_splits[0]))
     all_splits = markdown_split(markdown_parts)
+
     chunk_splitter = RecursiveCharacterTextSplitter(
         chunk_size=650,
         chunk_overlap=100,
@@ -105,7 +100,7 @@ def chunk_text(markdown_parts):
     )
 
     docs = chunk_splitter.split_documents(all_splits)
-    print("Chunking performed successfully")
+
     print(len(docs))
 
     return docs
@@ -144,6 +139,24 @@ def create_context(q: str):
                     FROM langchain_pg_embedding
                     WHERE cmetadata->>'flattened-header' = %s
                 """,(doc.page_content,))
+                rows = cur.fetchall()
+            page_contents = [c.page_content for c in chunks]
+            for document,cmetadata in rows:
+                if document not in page_contents:
+                    metadata = cmetadata if isinstance(cmetadata, dict) else json.loads(cmetadata)
+                    chunks.append(Document(page_content=document, metadata=metadata))
+        elif doc.metadata["type"] == "table-caption":
+            conn = psycopg.connect(
+                "dbname=postgres user=postgres password=1234 host=localhost port=5432"
+            )
+            with conn.cursor() as cur:
+                # Example: arbitrary SQL query on langchain_pg_embedding table
+                cur.execute("""
+                    SELECT document, cmetadata
+                    FROM langchain_pg_embedding
+                    WHERE cmetadata->>'type' = %s AND
+                    cmetadata->>'table-id' = %s
+                """,('table',doc.metadata['table-id']))
                 rows = cur.fetchall()
             page_contents = [c.page_content for c in chunks]
             for document,cmetadata in rows:
